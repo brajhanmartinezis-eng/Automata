@@ -6,6 +6,7 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -26,6 +27,8 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.util.function.Consumer;
 
 public class PanelPasos extends JPanel {
@@ -44,11 +47,15 @@ public class PanelPasos extends JPanel {
     private final JButton anterior = new JButton("\u25C0 Anterior");
     private final JButton siguiente = new JButton("Siguiente \u25B6");
     private final JButton reproducir = new JButton("Reproducir");
+    private final JButton dibujar = new JButton("Dibujar en el lienzo");
 
     private Timer temporizador;
 
     /** Aviso al controlador de que cambio el paso seleccionado. */
     private Consumer<Paso> alSeleccionarPaso = p -> { };
+
+    /** Aviso al controlador de que se pidio dibujar el automata resultante de una conversion. */
+    private Runnable alDibujarResultado = () -> { };
 
     public PanelPasos() {
         setLayout(new BorderLayout());
@@ -60,6 +67,8 @@ public class PanelPasos extends JPanel {
     }
 
     public void setAlSeleccionarPaso(Consumer<Paso> c) { alSeleccionarPaso = c; }
+
+    public void setAlDibujarResultado(Runnable r) { alDibujarResultado = r; }
 
     // ------------------------------------------------------------------
 
@@ -150,6 +159,9 @@ public class PanelPasos extends JPanel {
         anterior.addActionListener(e -> desplazar(-1));
         siguiente.addActionListener(e -> desplazar(1));
         reproducir.addActionListener(e -> alternarReproduccion());
+        dibujar.addActionListener(e -> alDibujarResultado.run());
+        dibujar.setVisible(false);
+        derecha.add(dibujar);
         derecha.add(anterior);
         derecha.add(siguiente);
         derecha.add(reproducir);
@@ -164,15 +176,32 @@ public class PanelPasos extends JPanel {
     // ------------------------------------------------------------------
 
     public void mostrar(Derivacion d) {
+        String alt = d.huboSimplificacion()
+                ? "sin clausura positiva ni potencias:  L = " + d.getExpresion()
+                : " ";
+        mostrarPasos("Expresi\u00F3n regular del lenguaje  \u00B7  " + d.getNombreMetodo(),
+                "L = " + d.getExpresionSimplificada(), alt, d.getPasos(), false);
+    }
+
+    /** Muestra la traza de una conversion de AFN a AFD, con boton para dibujar el resultado. */
+    public void mostrarConversion(ConversionAFD c) {
+        int n = c.getResultado().getEstados().size();
+        String resumen = "AFD con " + n + " estado" + (n == 1 ? "" : "s")
+                + (n == 0 ? "" : "  (k0.." + "k" + (n - 1) + ")");
+        mostrarPasos("Conversi\u00F3n de AFN a AFD  \u00B7  construcci\u00F3n de subconjuntos",
+                resumen, " ", c.getPasos(), true);
+    }
+
+    private void mostrarPasos(String titulo, String resultado, String alt,
+                              java.util.List<Paso> pasos, boolean permiteDibujar) {
         detener();
         modelo.clear();
-        for (Paso p : d.getPasos()) modelo.addElement(p);
+        for (Paso p : pasos) modelo.addElement(p);
 
-        rotulo.setText("Expresi\u00F3n regular del lenguaje  \u00B7  " + d.getNombreMetodo());
-        expresion.setText("L = " + d.getExpresionSimplificada());
-        alternativa.setText(d.huboSimplificacion()
-                ? "sin clausura positiva ni potencias:  L = " + d.getExpresion()
-                : " ");
+        rotulo.setText(titulo);
+        expresion.setText(resultado);
+        alternativa.setText(alt);
+        dibujar.setVisible(permiteDibujar);
 
         if (!modelo.isEmpty()) lista.setSelectedIndex(0);
         actualizarBotones();
@@ -184,6 +213,7 @@ public class PanelPasos extends JPanel {
         rotulo.setText("Expresi\u00F3n regular del lenguaje");
         expresion.setText(" ");
         alternativa.setText(" ");
+        dibujar.setVisible(false);
         detalle.setDocument(new DefaultStyledDocument());
         actualizarBotones();
     }
@@ -269,12 +299,46 @@ public class PanelPasos extends JPanel {
                 insertar(d, "C\u00D3MO QUEDA\n", seccion);
                 for (String linea : p.getSituacion()) insertar(d, linea + "\n", contexto);
             }
+            if (p.getAutomataAsociado() != null) insertar(d, "\n", cuerpo);
         } catch (BadLocationException ignorada) {
             // no puede ocurrir: siempre se inserta al final
         }
 
         detalle.setDocument(d);
+
+        if (p.getAutomataAsociado() != null) {
+            detalle.setCaretPosition(d.getLength());
+            detalle.insertComponent(construirVistaPrevia(p.getAutomataAsociado()));
+        }
+
         detalle.setCaretPosition(0);
+    }
+
+    /** Vista previa de solo lectura de un automata, reutilizando el mismo dibujante del lienzo. */
+    private JComponent construirVistaPrevia(Automata automata) {
+        DibujanteAutomata dibujante = new DibujanteAutomata();
+        DibujanteAutomata.Contexto ctx = new DibujanteAutomata.Contexto();
+
+        int ancho = 360, alto = 260;
+        for (Estado e : automata.getEstados()) {
+            ancho = Math.max(ancho, e.getX() + 140);
+            alto = Math.max(alto, e.getY() + 140);
+        }
+        final int anchoF = ancho, altoF = alto;
+
+        JPanel vista = new JPanel() {
+            private static final long serialVersionUID = 1L;
+            @Override protected void paintComponent(Graphics g0) {
+                super.paintComponent(g0);
+                Graphics2D g = (Graphics2D) g0.create();
+                dibujante.dibujar(g, automata, ctx, getWidth(), getHeight());
+                g.dispose();
+            }
+        };
+        vista.setPreferredSize(new Dimension(anchoF, altoF));
+        vista.setBackground(Tema.PANEL);
+        vista.setBorder(BorderFactory.createLineBorder(Tema.BORDE));
+        return vista;
     }
 
     /** Area de solo lectura que ajusta lineas y se confunde con el fondo. */

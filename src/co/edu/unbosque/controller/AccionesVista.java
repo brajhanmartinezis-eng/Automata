@@ -10,13 +10,13 @@ public interface AccionesVista {
 
     void cargarEjemplo(int indice);
 
-    void abrirArchivo();
+    void convertirAAFD();
 
-    void guardarArchivo();
+    void dibujarAutomataConvertido();
+
+    void verificarCadena(String cadena);
 
     void seleccionarHerramienta(Herramienta herramienta);
-
-    void seleccionarMetodo(MetodoDerivacion metodo);
 
     void generarExpresion();
 

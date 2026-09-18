@@ -65,4 +65,21 @@ public final class EjemplosAutomata {
         a.agregarTransicionSilenciosa(q2, "b", q2);
         return a;
     }
+
+    /**
+     * AFN sobre {a,b}: una o mas aes seguidas de cualquier cantidad de bes (a+ b*).
+     * q0 es no determinista en "a" (se queda en q0 o pasa a q1), pensado para probar
+     * la conversion a AFD por construccion de subconjuntos.
+     */
+    public static Automata afnAMasBEstrella() {
+        Automata a = new Automata();
+        a.setNombre("AFN: una o más \"a\" seguidas de cualquier cantidad de \"b\"");
+        Estado q0 = a.agregarEstadoSilencioso("q0", 220, 220, true, false);
+        Estado q1 = a.agregarEstadoSilencioso("q1", 480, 220, false, true);
+        a.agregarTransicionSilenciosa(q0, "a", q0);
+        a.agregarTransicionSilenciosa(q0, "a", q1);
+        a.agregarTransicionSilenciosa(q0, "b", q0);
+        a.agregarTransicionSilenciosa(q1, "b", q1);
+        return a;
+    }
 }

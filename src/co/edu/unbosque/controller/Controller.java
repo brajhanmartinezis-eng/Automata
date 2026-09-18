@@ -7,8 +7,6 @@ import java.awt.Point;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,10 +23,11 @@ public class Controller implements AccionesVista, OyenteAutomata,
     private final VistaPrincipal vista;
     private final LienzoAutomata lienzo;
     private final ServicioDerivacion servicio = new ServicioDerivacion();
-    private final RepositorioAutomata repositorio = new RepositorioTextoPlano();
+    private final ConversorAFNaAFD conversor = new ConversorAFNaAFD();
 
     private MetodoDerivacion metodoActual;
     private Derivacion derivacionActual;
+    private Automata conversionPendiente;
 
     private Herramienta herramienta = Herramienta.MOVER;
     private Estado arrastrado;
@@ -42,7 +41,6 @@ public class Controller implements AccionesVista, OyenteAutomata,
         this.metodoActual = servicio.getMetodos().get(0);
 
         vista.setAcciones(this);
-        vista.setMetodos(servicio.getMetodos());
         automata.agregarOyente(this);
 
         lienzo.addMouseListener(this);
@@ -68,18 +66,20 @@ public class Controller implements AccionesVista, OyenteAutomata,
         derivacionActual = null;
         vista.limpiarDerivacion();
         vista.resaltarEstado(null);
+        vista.limpiarResultadoCadena();
         actualizarBarra();
     }
 
     private void actualizarBarra() {
         ResultadoValidacion r = servicio.validar(automata);
+        String tipo = automata.esDeterminista() ? "AFD" : "AFN";
         String diagnostico = r.esValido()
-                ? (r.tieneAvisos() ? "AFD v\u00E1lido con " + r.getAvisos().size() + " aviso(s)"
-                                   : "AFD v\u00E1lido")
+                ? (r.tieneAvisos() ? "v\u00E1lido con " + r.getAvisos().size() + " aviso(s)" : "v\u00E1lido")
                 : r.getErrores().size() + " punto(s) por corregir";
-        vista.mostrarEnBarra(automata.getEstados().size() + " estados \u00B7 "
+        vista.mostrarEnBarra(tipo + " \u00B7 " + automata.getEstados().size() + " estados \u00B7 "
                 + automata.getTransiciones().size() + " transiciones \u00B7 \u03A3 = "
                 + automata.getAlfabeto() + " \u00B7 " + diagnostico);
+        vista.habilitarConversion(!automata.esDeterminista());
     }
 
     // ------------------------------------------------------------------
@@ -97,36 +97,42 @@ public class Controller implements AccionesVista, OyenteAutomata,
             case 1:  ejemplo = EjemplosAutomata.exactamenteUnUno(); break;
             case 2:  ejemplo = EjemplosAutomata.paresDeA();         break;
             case 3:  ejemplo = EjemplosAutomata.contieneAA();       break;
+            case 4:  ejemplo = EjemplosAutomata.afnAMasBEstrella(); break;
             default: ejemplo = EjemplosAutomata.terminaEnAB();      break;
         }
         automata.reemplazarPor(ejemplo);
         alModificarModelo();
     }
 
-    @Override public void abrirArchivo() {
-        File f = vista.pedirArchivoParaAbrir(
-                repositorio.getDescripcionFormato(), repositorio.getExtension());
-        if (f == null) return;
-        try {
-            automata.reemplazarPor(repositorio.cargar(f));
-            alModificarModelo();
-        } catch (IOException ex) {
-            vista.mostrarError("No se pudo abrir",
-                    "El archivo no se pudo leer:\n" + ex.getMessage());
+    @Override public void convertirAAFD() {
+        ResultadoValidacion r = servicio.validar(automata);
+        if (!r.esValido()) {
+            vista.mostrarError("Revisa el autómata",
+                    "Antes de convertir hay que corregir:\n\n" + r.erroresComoTexto());
+            return;
         }
+        if (automata.esDeterminista()) {
+            vista.mostrarInformacion("Ya es un AFD",
+                    "El autómata actual ya es determinista; no hay nada que convertir.");
+            return;
+        }
+        ConversionAFD conversion = conversor.convertir(automata);
+        conversionPendiente = conversion.getResultado();
+        vista.mostrarConversion(conversion);
     }
 
-    @Override public void guardarArchivo() {
-        File f = vista.pedirArchivoParaGuardar(
-                repositorio.getDescripcionFormato(), repositorio.getExtension());
-        if (f == null) return;
-        try {
-            repositorio.guardar(automata, f);
-            vista.mostrarEnBarra("Guardado en " + f.getAbsolutePath());
-        } catch (IOException ex) {
-            vista.mostrarError("No se pudo guardar",
-                    "El archivo no se pudo escribir:\n" + ex.getMessage());
-        }
+    @Override public void dibujarAutomataConvertido() {
+        if (conversionPendiente == null) return;
+        automata.reemplazarPor(conversionPendiente);
+        conversionPendiente = null;
+        alModificarModelo();
+    }
+
+    @Override public void verificarCadena(String cadena) {
+        String limpia = cadena.replaceAll("\\s+", "");
+        List<String> simbolos = new ArrayList<String>();
+        for (char ch : limpia.toCharArray()) simbolos.add(String.valueOf(ch));
+        vista.mostrarResultadoCadena(limpia, automata.acepta(simbolos));
     }
 
     @Override public void seleccionarHerramienta(Herramienta h) {
@@ -136,15 +142,10 @@ public class Controller implements AccionesVista, OyenteAutomata,
         vista.mostrarEnBarra(h.getAyuda());
     }
 
-    @Override public void seleccionarMetodo(MetodoDerivacion m) {
-        metodoActual = m;
-        if (derivacionActual != null) generarExpresion();
-    }
-
     @Override public void generarExpresion() {
         ResultadoValidacion r = servicio.validar(automata);
         if (!r.esValido()) {
-            vista.mostrarError("Revisa el AFD",
+            vista.mostrarError("Revisa el aut\u00F3mata",
                     "Antes de generar la expresi\u00F3n hay que corregir:\n\n"
                             + r.erroresComoTexto());
             return;
@@ -230,7 +231,7 @@ public class Controller implements AccionesVista, OyenteAutomata,
     @Override public void mostrarCadenasDeEjemplo() {
         ResultadoValidacion r = servicio.validar(automata);
         if (!r.esValido()) {
-            vista.mostrarError("Revisa el AFD", r.erroresComoTexto());
+            vista.mostrarError("Revisa el autómata", r.erroresComoTexto());
             return;
         }
         List<String> cadenas = servicio.cadenasDeEjemplo(automata, 8, 40);
@@ -276,7 +277,7 @@ public class Controller implements AccionesVista, OyenteAutomata,
               + "5. Con \"Borrar\" haz clic sobre un estado, o sobre la etiqueta de una\n"
               + "   transici\u00F3n para eliminar esa arista.\n\n"
               + "GENERAR LA EXPRESI\u00D3N\n\n"
-              + "6. Elige el m\u00E9todo y pulsa \"Generar expresi\u00F3n regular\".\n"
+              + "6. Pulsa \"Generar expresi\u00F3n regular\".\n"
               + "   La expresi\u00F3n aparece arriba a la derecha y el desarrollo completo\n"
               + "   en la lista de pasos. Al seleccionar un paso se resalta en el\n"
               + "   diagrama el estado que se est\u00E1 despejando o eliminando.\n\n"
@@ -284,6 +285,14 @@ public class Controller implements AccionesVista, OyenteAutomata,
               + "8. El men\u00FA Lenguaje calcula la reflexi\u00F3n y la potencia del\n"
               + "   lenguaje obtenido, y lista cadenas de ejemplo para contrastar\n"
               + "   la expresi\u00F3n a mano.\n\n"
+              + "AFN Y CONVERSI\u00D3N A AFD\n\n"
+              + "9. Puedes dibujar un AFN con normalidad: nada impide que un estado\n"
+              + "   tenga varias transiciones con el mismo s\u00EDmbolo. La barra de\n"
+              + "   estado indica en todo momento si lo dibujado es AFD o AFN.\n\n"
+              + "10. Cuando es AFN se activa el bot\u00F3n \"Convertir AFN a AFD\" en la\n"
+              + "    barra superior. Muestra los 5 pasos de la construcci\u00F3n de\n"
+              + "    subconjuntos y, al final, un bot\u00F3n para dibujar el AFD\n"
+              + "    resultante en el lienzo.\n\n"
               + "EL COLOR\n\n"
               + "La interfaz usa solo neutros m\u00E1s un \u00FAnico color de acento, que es\n"
               + "el del paso a paso. No hay azul en ninguna parte. Se cambia desde\n"
@@ -474,9 +483,9 @@ public class Controller implements AccionesVista, OyenteAutomata,
                 rechazados.add(simbolo);
         }
         if (!rechazados.isEmpty())
-            vista.mostrarError("Determinismo",
-                    "En un AFD cada estado admite un solo destino por s\u00EDmbolo.\n"
-                            + origen.getNombre() + " ya define: "
+            vista.mostrarError("Transici\u00F3n duplicada",
+                    origen.getNombre() + " \u2192 " + destino.getNombre()
+                            + " ya tiene exactamente esa transici\u00F3n con: "
                             + String.join(", ", rechazados));
         alModificarModelo();
     }

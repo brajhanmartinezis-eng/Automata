@@ -12,14 +12,14 @@ public final class Tema {
 
     private static Color acento = new Color(0xC2, 0x5E, 0x1B); 
 
-    public static final Color FONDO       = new Color(0xF4, 0xF1, 0xEC);
+    public static final Color FONDO       = new Color(0xEE, 0xF0, 0xF3);
     public static final Color PANEL       = new Color(0xFF, 0xFF, 0xFF);
-    public static final Color REJILLA     = new Color(0xE9, 0xE4, 0xDB);
-    public static final Color TINTA       = new Color(0x22, 0x20, 0x1E);
-    public static final Color TINTA_SUAVE = new Color(0x6E, 0x69, 0x62);
-    public static final Color BORDE       = new Color(0xD2, 0xCC, 0xC2);
-    public static final Color TRAZO       = new Color(0x33, 0x30, 0x2C);
-    public static final Color SELECCION   = new Color(0x8A, 0x84, 0x7B);
+    public static final Color REJILLA     = new Color(0xE2, 0xE5, 0xEA);
+    public static final Color TINTA       = new Color(0x1B, 0x1D, 0x20);
+    public static final Color TINTA_SUAVE = new Color(0x5C, 0x62, 0x6B);
+    public static final Color BORDE       = new Color(0xD6, 0xDA, 0xE1);
+    public static final Color TRAZO       = new Color(0x29, 0x2C, 0x31);
+    public static final Color SELECCION   = new Color(0x76, 0x7C, 0x86);
 
     public static final Font F_UI     = new Font("SansSerif", Font.PLAIN, 13);
     public static final Font F_UI_B   = new Font("SansSerif", Font.BOLD, 13);

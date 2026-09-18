@@ -5,8 +5,8 @@ public enum Herramienta {
 
     MOVER("Mover", "Arrastra los estados para reubicarlos"),
     ESTADO("+ Estado", "Clic en el lienzo para crear un estado"),
-    TRANSICION("+ Transici\u00F3n", "Clic en el estado origen y luego en el destino"),
-    BORRAR("Borrar", "Clic sobre un estado o sobre la etiqueta de una transici\u00F3n");
+    TRANSICION("+ Transición", "Clic en el estado origen y luego en el destino"),
+    BORRAR("Borrar", "Clic sobre un estado o sobre la etiqueta de una transición");
 
     private final String etiqueta;
     private final String ayuda;

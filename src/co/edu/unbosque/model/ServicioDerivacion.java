@@ -9,7 +9,7 @@ import java.util.List;
 public class ServicioDerivacion {
 
     private final List<MetodoDerivacion> metodos;
-    private final ValidadorAFD validador = new ValidadorAFD();
+    private final ValidadorAutomata validador = new ValidadorAutomata();
     private boolean usarClausuraYPotencias = true;
 
     public ServicioDerivacion() {
@@ -26,8 +26,8 @@ public class ServicioDerivacion {
     public ResultadoValidacion validar(Automata a) { return validador.validar(a); }
 
     /**
-     * Ejecuta el metodo indicado. Devuelve null si el automata no es un AFD
-     * valido; en ese caso el controlador debe consultar validar().
+     * Ejecuta el metodo indicado (funciona con AFD o AFN). Devuelve null si el
+     * automata no es valido; en ese caso el controlador debe consultar validar().
      */
     public Derivacion derivar(Automata automata, MetodoDerivacion metodo) {
         if (!validador.validar(automata).esValido()) return null;

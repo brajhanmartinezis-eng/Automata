@@ -12,6 +12,7 @@ public class Paso {
     private final String explicacion;
     private String regla = "";
     private String estadoResaltado;
+    private Automata automataAsociado;
 
     private final List<String> desarrollo = new ArrayList<String>();
     private final List<String> situacion = new ArrayList<String>();
@@ -24,6 +25,9 @@ public class Paso {
     public Paso conRegla(String r) { regla = r; return this; }
 
     public Paso resaltando(String estado) { estadoResaltado = estado; return this; }
+
+    /** Asocia un automata para previsualizar dibujado junto al detalle de este paso. */
+    public Paso conAutomata(Automata a) { automataAsociado = a; return this; }
 
     /** Linea que cambia en este paso: se pinta con el color del paso a paso. */
     public Paso desarrollo(String linea) { desarrollo.add(linea); return this; }
@@ -42,6 +46,8 @@ public class Paso {
     public String getRegla() { return regla; }
 
     public String getEstadoResaltado() { return estadoResaltado; }
+
+    public Automata getAutomataAsociado() { return automataAsociado; }
 
     public List<String> getDesarrollo() { return Collections.unmodifiableList(desarrollo); }
 

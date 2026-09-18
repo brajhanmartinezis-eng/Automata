@@ -68,11 +68,19 @@ public class Automata {
         return a;
     }
 
-    /** Transicion definida para (estado, simbolo), o null si no existe. */
+    /** Primera transicion definida para (estado, simbolo), o null si no existe. */
     public Transicion transicionDe(Estado origen, String simbolo) {
         for (Transicion t : transiciones)
             if (t.getOrigen() == origen && t.getSimbolo().equals(simbolo)) return t;
         return null;
+    }
+
+    /** Todas las transiciones definidas para (estado, simbolo); puede haber varias en un AFN. */
+    public List<Transicion> transicionesDe(Estado origen, String simbolo) {
+        List<Transicion> l = new ArrayList<Transicion>();
+        for (Transicion t : transiciones)
+            if (t.getOrigen() == origen && t.getSimbolo().equals(simbolo)) l.add(t);
+        return l;
     }
 
     public List<Transicion> transicionesEntre(Estado origen, Estado destino) {
@@ -82,16 +90,34 @@ public class Automata {
         return l;
     }
 
-    /** Simula el automata sobre una cadena, tratandolo como AFD posiblemente incompleto. */
-    public boolean acepta(List<String> cadena) {
-        Estado actual = getInicial();
-        if (actual == null) return false;
-        for (String s : cadena) {
-            Transicion t = transicionDe(actual, s);
-            if (t == null) return false;
-            actual = t.getDestino();
+    /** Es AFD si ningun estado tiene dos o mas transiciones con el mismo simbolo. */
+    public boolean esDeterminista() {
+        for (Estado e : estados) {
+            Set<String> vistos = new LinkedHashSet<String>();
+            for (Transicion t : transiciones)
+                if (t.getOrigen() == e && !vistos.add(t.getSimbolo())) return false;
         }
-        return actual.esAceptacion();
+        return true;
+    }
+
+    /**
+     * Simula el automata sobre una cadena por conjunto de estados activos, valido
+     * tanto para AFD (a lo sumo un estado activo en cada paso) como para AFN.
+     */
+    public boolean acepta(List<String> cadena) {
+        Estado ini = getInicial();
+        if (ini == null) return false;
+        Set<Estado> activos = new LinkedHashSet<Estado>();
+        activos.add(ini);
+        for (String s : cadena) {
+            Set<Estado> siguientes = new LinkedHashSet<Estado>();
+            for (Estado e : activos)
+                for (Transicion t : transicionesDe(e, s)) siguientes.add(t.getDestino());
+            activos = siguientes;
+            if (activos.isEmpty()) return false;
+        }
+        for (Estado e : activos) if (e.esAceptacion()) return true;
+        return false;
     }
 
     public Set<Estado> estadosAlcanzables() {
@@ -157,12 +183,13 @@ public class Automata {
     }
 
     /**
-     * Agrega una transicion. Devuelve false si romperia el determinismo,
-     * es decir si ya existe otra transicion desde el mismo estado con el
-     * mismo simbolo.
+     * Agrega una transicion. Se permiten varias transiciones desde el mismo estado
+     * con el mismo simbolo (AFN); solo se rechaza la arista exactamente duplicada
+     * (mismo origen, simbolo y destino).
      */
     public boolean agregarTransicion(Estado origen, String simbolo, Estado destino) {
-        if (transicionDe(origen, simbolo) != null) return false;
+        for (Transicion t : transicionesEntre(origen, destino))
+            if (t.getSimbolo().equals(simbolo)) return false;
         transiciones.add(new Transicion(origen, simbolo, destino));
         notificar();
         return true;

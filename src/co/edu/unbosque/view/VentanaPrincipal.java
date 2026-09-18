@@ -9,9 +9,7 @@ import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JColorChooser;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -23,11 +21,11 @@ import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -36,8 +34,6 @@ import java.awt.FlowLayout;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
-import java.util.List;
 
 
 public class VentanaPrincipal extends JFrame implements VistaPrincipal {
@@ -47,12 +43,14 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
     private final LienzoAutomata lienzo;
     private final PanelPasos panelPasos = new PanelPasos();
     private final JLabel barraEstado = new JLabel(" ");
-    private final JComboBox<MetodoDerivacion> selectorMetodo = new JComboBox<MetodoDerivacion>();
+    private final JButton botonConvertir = new JButton("Convertir AFN a AFD");
+    private final JTextField campoCadena = new JTextField();
+    private final JLabel resultadoCadena = new JLabel(" ");
 
     private AccionesVista acciones;
 
     public VentanaPrincipal(Automata automata) {
-        super("AFD \u2192 Expresi\u00F3n regular  \u00B7  generador con paso a paso");
+        super("AFD/AFN \u2192 Expresi\u00F3n regular  \u00B7  generador con paso a paso");
         this.lienzo = new LienzoAutomata(automata);
 
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -62,14 +60,19 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getViewport().setBackground(Tema.PANEL);
 
+        JPanel pie = new JPanel(new BorderLayout());
+        pie.setBackground(Tema.FONDO);
+        pie.add(construirBarraCadena(), BorderLayout.NORTH);
+        pie.add(construirBarraEstado(), BorderLayout.SOUTH);
+
         JPanel izquierda = new JPanel(new BorderLayout());
         izquierda.setBackground(Tema.FONDO);
         izquierda.add(construirBarra(), BorderLayout.NORTH);
         izquierda.add(scroll, BorderLayout.CENTER);
-        izquierda.add(construirBarraEstado(), BorderLayout.SOUTH);
+        izquierda.add(pie, BorderLayout.SOUTH);
 
         JSplitPane division = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, izquierda, panelPasos);
-        division.setResizeWeight(0.60);
+        division.setResizeWeight(0.50);
         division.setDividerSize(6);
         division.setBorder(BorderFactory.createEmptyBorder());
 
@@ -77,9 +80,13 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
         setSize(1340, 810);
         setMinimumSize(new Dimension(1020, 650));
         setLocationRelativeTo(null);
+        division.setDividerLocation(0.5);
 
         panelPasos.setAlSeleccionarPaso(p -> {
             if (acciones != null) acciones.pasoSeleccionado(p);
+        });
+        panelPasos.setAlDibujarResultado(() -> {
+            if (acciones != null) acciones.dibujarAutomataConvertido();
         });
     }
 
@@ -89,20 +96,32 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
 
     @Override public void setAcciones(AccionesVista a) { acciones = a; }
 
-    @Override public void setMetodos(List<MetodoDerivacion> metodos) {
-        selectorMetodo.removeAllItems();
-        for (MetodoDerivacion m : metodos) selectorMetodo.addItem(m);
-    }
-
     @Override public LienzoAutomata getLienzo() { return lienzo; }
 
     @Override public void mostrarDerivacion(Derivacion d) { panelPasos.mostrar(d); }
+
+    @Override public void mostrarConversion(ConversionAFD c) { panelPasos.mostrarConversion(c); }
+
+    @Override public void habilitarConversion(boolean habilitado) { botonConvertir.setEnabled(habilitado); }
 
     @Override public void limpiarDerivacion() { panelPasos.limpiar(); }
 
     @Override public void resaltarEstado(String nombre) { lienzo.setEstadoResaltado(nombre); }
 
     @Override public void mostrarEnBarra(String texto) { barraEstado.setText("  " + texto); }
+
+    @Override public void mostrarResultadoCadena(String cadena, boolean aceptada) {
+        String mostrada = cadena.isEmpty() ? "ε" : cadena;
+        if (aceptada) {
+            resultadoCadena.setText("✓  \"" + mostrada + "\" es aceptada");
+            resultadoCadena.setForeground(Tema.acentoOscuro());
+        } else {
+            resultadoCadena.setText("✗  \"" + mostrada + "\" no es aceptada");
+            resultadoCadena.setForeground(Tema.TINTA_SUAVE);
+        }
+    }
+
+    @Override public void limpiarResultadoCadena() { resultadoCadena.setText(" "); }
 
     @Override public void mostrarError(String titulo, String mensaje) {
         JOptionPane.showMessageDialog(this, mensaje, titulo, JOptionPane.WARNING_MESSAGE);
@@ -129,21 +148,6 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
                 JOptionPane.QUESTION_MESSAGE, null, null, valorInicial);
     }
 
-    @Override public File pedirArchivoParaAbrir(String descripcion, String extension) {
-        JFileChooser fc = selector(descripcion, extension);
-        return fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION
-                ? fc.getSelectedFile() : null;
-    }
-
-    @Override public File pedirArchivoParaGuardar(String descripcion, String extension) {
-        JFileChooser fc = selector(descripcion, extension);
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return null;
-        File f = fc.getSelectedFile();
-        if (!f.getName().toLowerCase().endsWith("." + extension))
-            f = new File(f.getParentFile(), f.getName() + "." + extension);
-        return f;
-    }
-
     @Override public void aplicarColorPasoAPaso() {
         Tema.instalar();
         SwingUtilities.updateComponentTreeUI(this);
@@ -155,12 +159,6 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
     @Override public void refrescar() {
         lienzo.repaint();
         repaint();
-    }
-
-    private JFileChooser selector(String descripcion, String extension) {
-        JFileChooser fc = new JFileChooser();
-        fc.setFileFilter(new FileNameExtensionFilter(descripcion, extension));
-        return fc;
     }
 
     // ------------------------------------------------------------------
@@ -184,27 +182,11 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
 
         barra.add(Box.createHorizontalGlue());
 
-        JLabel etiqueta = new JLabel("M\u00E9todo: ");
-        etiqueta.setFont(Tema.F_UI);
-        etiqueta.setForeground(Tema.TINTA_SUAVE);
-        barra.add(etiqueta);
-
-        selectorMetodo.setFont(Tema.F_UI);
-        selectorMetodo.setMaximumSize(new Dimension(300, 28));
-        selectorMetodo.setRenderer(new javax.swing.DefaultListCellRenderer() {
-            @Override public java.awt.Component getListCellRendererComponent(
-                    javax.swing.JList<?> l, Object v, int i, boolean sel, boolean foco) {
-                JLabel c = (JLabel) super.getListCellRendererComponent(l, v, i, sel, foco);
-                if (v instanceof MetodoDerivacion) c.setText(((MetodoDerivacion) v).getNombre());
-                return c;
-            }
-        });
-        selectorMetodo.addActionListener(e -> {
-            Object sel = selectorMetodo.getSelectedItem();
-            if (acciones != null && sel instanceof MetodoDerivacion)
-                acciones.seleccionarMetodo((MetodoDerivacion) sel);
-        });
-        barra.add(selectorMetodo);
+        botonConvertir.setFont(Tema.F_UI_B);
+        botonConvertir.setForeground(Tema.acentoOscuro());
+        botonConvertir.setEnabled(false);
+        botonConvertir.addActionListener(e -> { if (acciones != null) acciones.convertirAAFD(); });
+        barra.add(botonConvertir);
         barra.add(Box.createHorizontalStrut(10));
 
         JButton generar = new JButton("Generar expresi\u00F3n regular");
@@ -252,6 +234,36 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
         return b;
     }
 
+    private JPanel construirBarraCadena() {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        p.setBackground(Tema.PANEL);
+        p.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Tema.BORDE));
+
+        JLabel etiqueta = new JLabel("Probar cadena:");
+        etiqueta.setFont(Tema.F_UI);
+        etiqueta.setForeground(Tema.TINTA_SUAVE);
+        p.add(etiqueta);
+
+        campoCadena.setFont(Tema.F_MONO);
+        campoCadena.setColumns(16);
+        campoCadena.addActionListener(e -> verificarCadena());
+        p.add(campoCadena);
+
+        JButton verificar = new JButton("Verificar");
+        verificar.setFont(Tema.F_UI);
+        verificar.addActionListener(e -> verificarCadena());
+        p.add(verificar);
+
+        resultadoCadena.setFont(Tema.F_UI_B);
+        p.add(resultadoCadena);
+
+        return p;
+    }
+
+    private void verificarCadena() {
+        if (acciones != null) acciones.verificarCadena(campoCadena.getText());
+    }
+
     private JPanel construirBarraEstado() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
         p.setBackground(Tema.FONDO);
@@ -277,10 +289,9 @@ public class VentanaPrincipal extends JFrame implements VistaPrincipal {
                 e -> acciones.cargarEjemplo(1)));
         ejemplos.add(item("N\u00FAmero par de aes", e -> acciones.cargarEjemplo(2)));
         ejemplos.add(item("Cadenas que contienen \"aa\"", e -> acciones.cargarEjemplo(3)));
+        ejemplos.addSeparator();
+        ejemplos.add(item("AFN: \"a⁺ b*\" (no determinista)", e -> acciones.cargarEjemplo(4)));
         archivo.add(ejemplos);
-        archivo.addSeparator();
-        archivo.add(item("Abrir\u2026", e -> acciones.abrirArchivo()));
-        archivo.add(item("Guardar como\u2026", e -> acciones.guardarArchivo()));
         archivo.addSeparator();
         archivo.add(item("Salir", e -> dispose()));
         mb.add(archivo);
